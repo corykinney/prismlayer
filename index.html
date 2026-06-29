@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prism Layer Calculator</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #181b22;
+    --panel-2: #1f232c;
+    --border: #2a2f3a;
+    --text: #e6e9ef;
+    --muted: #9aa3b2;
+    --accent: #4f9dff;
+    --accent-soft: #1c2b40;
+    --solved: #4f9dff;
+    --solved-soft: #15263d;
+    --error: #ff6b6b;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 28px 20px 52px;
+  }
+  /* single column by default; calculator + breakdown side by side when wide */
+  .layout {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .calc-col { min-width: 0; width: 100%; max-width: 650px; justify-self: center; }
+  @media (min-width: 880px) {
+    /* fill the wrap so calculator + table together match the header width */
+    .layout { grid-template-columns: 650px 1fr; }
+    .breakdown-panel { position: sticky; top: 24px; }
+  }
+  header h1 {
+    font-size: 1.45rem;
+    margin: 0 0 4px;
+    letter-spacing: -0.02em;
+  }
+  header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 6px;
+  }
+  .field {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    transition: background 0.15s;
+  }
+  .field + .field { margin-top: 4px; }
+  .field.solved { background: var(--solved-soft); }
+  .field-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .field-label .name { font-weight: 600; font-size: 0.92rem; }
+  .field-label .sub { color: var(--muted); font-size: 0.8rem; }
+  .input-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .input-group input[type="number"],
+  .entry input[type="number"] {
+    width: 150px;
+    padding: 7px 10px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    text-align: right;
+    -moz-appearance: textfield;
+  }
+  .input-group input[type="number"]:focus,
+  .entry input[type="number"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .input-group input[type="number"]::-webkit-outer-spin-button,
+  .input-group input[type="number"]::-webkit-inner-spin-button,
+  .entry input[type="number"]::-webkit-outer-spin-button,
+  .entry input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none; margin: 0;
+  }
+  .field.solved input[type="number"] {
+    border-color: var(--solved);
+    background: #15233c;
+    color: var(--solved);
+    font-weight: 600;
+  }
+  .field.solved input[type="number"]:read-only { cursor: default; }
+
+  /* grouped "size" block: total thickness and outermost-layer thickness are
+     interchangeable inputs sharing one solve toggle */
+  .field.size-group { gap: 8px; border: 1px dashed var(--border); }
+  .field.solved.size-group { border-style: solid; border-color: var(--solved); }
+  .size-stack { display: grid; gap: 8px; min-width: 0; }
+  .size-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .entry { display: flex; align-items: center; gap: 8px; }
+  .size-or {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .size-or::before, .size-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+  /* round icon toggle that marks which value is being solved for */
+  .solve-toggle {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .solve-toggle svg { width: 17px; height: 17px; display: block; }
+  .solve-toggle:hover { border-color: var(--accent); color: var(--accent); }
+  .field.solved .solve-toggle {
+    background: var(--solved);
+    border-color: var(--solved);
+    color: #06182f;
+  }
+  .field.solved .solve-toggle:hover { color: #06182f; }
+
+  /* −/+ stepper sits in the unit slot, to the right of the count input */
+  .stepper {
+    flex: none;
+    width: 52px;
+    height: 33px;
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--panel-2);
+  }
+  .step {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 1.05rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .step + .step { border-left: 1px solid var(--border); }
+  .step:hover:not(:disabled) { background: var(--border); color: var(--accent); }
+  .step:active:not(:disabled) { background: var(--accent-soft); }
+  .step:disabled { opacity: 0.35; cursor: not-allowed; }
+  .field.solved .stepper { border-color: var(--solved); }
+  /* shared width so inputs line up whether the unit slot is a label or a picker */
+  .units {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    min-width: 52px;
+  }
+  .unit-select {
+    flex: none;
+    width: 52px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 6px 4px;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  .unit-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .field.solved .unit-select { border-color: var(--solved); }
+  .col-unit { color: var(--muted); font-weight: 400; }
+  .status {
+    margin-top: 12px;
+    padding: 9px 13px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    min-height: 1.5em;
+  }
+  .status.error { color: var(--error); border-color: #45252a; background: #2a1a1c; }
+  .status.ok { color: var(--text); }
+  .controls {
+    margin-top: 14px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .reset {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .reset:hover { color: var(--text); border-color: var(--accent); }
+  .breakdown-panel {
+    width: 100%;
+    max-width: 650px;
+    justify-self: center;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .breakdown-head {
+    padding: 10px 14px;
+    font-weight: 600;
+    font-size: 0.92rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .breakdown-head .hint { color: var(--muted); font-weight: 400; font-size: 0.78rem; }
+  .breakdown-scroll { max-height: 520px; overflow: auto; }
+  .breakdown-empty { padding: 14px; color: var(--muted); font-size: 0.84rem; }
+  table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 0.84rem; }
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--panel-2);
+    color: var(--muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+  }
+  th, td { padding: 6px 14px; text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; color: var(--muted); }
+  tbody td:first-child { color: var(--text); }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:nth-child(even) { background: var(--panel-2); }
+  tbody tr:hover { background: var(--accent-soft); }
+  footer { margin-top: 28px; color: var(--muted); font-size: 0.8rem; text-align: center; }
+  footer code { background: var(--panel-2); padding: 2px 6px; border-radius: 4px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Prism Layer Calculator</h1>
+    <p>Mesh prism layers as a geometric series. Tap the <b>=</b> icon on the value you want computed, then enter the others. Total and outermost-layer thickness are interchangeable — edit whichever you know and the other follows.</p>
+  </header>
+
+  <div class="layout">
+   <div class="calc-col">
+  <div class="card" id="card">
+    <div class="field" data-key="first">
+      <div class="field-label">
+        <span class="name">Near-wall layer thickness</span>
+        <span class="sub">t₁ — height of the first cell at the wall</span>
+      </div>
+      <div class="input-group">
+        <input type="number" id="first" step="any" min="0" placeholder="0.001">
+        <select class="unit-select" id="unit-first" aria-label="Near-wall thickness unit">
+          <option value="m">m</option>
+          <option value="mm">mm</option>
+        </select>
+        <button class="solve-toggle" data-solve="first" title="Solve for near-wall thickness" aria-label="Solve for near-wall thickness">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="9" x2="18" y2="9"/><line x1="6" y1="15" x2="18" y2="15"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="field" data-key="ratio">
+      <div class="field-label">
+        <span class="name">Stretch factor</span>
+        <span class="sub">r — growth ratio between consecutive layers (&gt; 1)</span>
+      </div>
+      <div class="input-group">
+        <input type="number" id="ratio" step="any" min="0" placeholder="1.2">
+        <span class="units">&times;</span>
+        <button class="solve-toggle" data-solve="ratio" title="Solve for stretch factor" aria-label="Solve for stretch factor">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="9" x2="18" y2="9"/><line x1="6" y1="15" x2="18" y2="15"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="field solved" data-key="count">
+      <div class="field-label">
+        <span class="name">Number of prism layers</span>
+        <span class="sub">n — total count of layers</span>
+      </div>
+      <div class="input-group">
+        <input type="number" id="count" step="1" min="1" placeholder="15">
+        <div class="stepper">
+          <button type="button" class="step" data-step="-1" aria-label="Decrease layer count">&minus;</button>
+          <button type="button" class="step" data-step="1" aria-label="Increase layer count">+</button>
+        </div>
+        <button class="solve-toggle" data-solve="count" title="Solve for number of layers" aria-label="Solve for number of layers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="9" x2="18" y2="9"/><line x1="6" y1="15" x2="18" y2="15"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="field size-group" data-key="size">
+      <div class="size-stack">
+        <div class="size-item">
+          <div class="field-label">
+            <span class="name">Outermost layer thickness</span>
+            <span class="sub">t<sub>out</sub> — height of the last layer, farthest from the wall</span>
+          </div>
+          <div class="entry">
+            <input type="number" id="last" step="any" min="0" placeholder="0.015">
+            <select class="unit-select" id="unit-last" aria-label="Outermost layer thickness unit">
+              <option value="m">m</option>
+              <option value="mm">mm</option>
+            </select>
+          </div>
+        </div>
+        <div class="size-or">or</div>
+        <div class="size-item">
+          <div class="field-label">
+            <span class="name">Total thickness</span>
+            <span class="sub">T — combined height of all prism layers</span>
+          </div>
+          <div class="entry">
+            <input type="number" id="total" step="any" min="0" placeholder="0.05">
+            <select class="unit-select" id="unit-total" aria-label="Total thickness unit">
+              <option value="m">m</option>
+              <option value="mm">mm</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <button class="solve-toggle" data-solve="size" title="Compute mesh size (total &amp; outermost-layer) from the others" aria-label="Compute total and outermost-layer thickness">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="9" x2="18" y2="9"/><line x1="6" y1="15" x2="18" y2="15"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="reset" id="reset">Reset</button>
+  </div>
+
+  <div class="status" id="status"></div>
+   </div><!-- /calc-col -->
+
+   <aside class="breakdown-panel">
+     <div class="breakdown-head">
+       <span>Per-layer breakdown</span>
+       <span class="hint">outermost → wall</span>
+     </div>
+     <div class="breakdown-scroll">
+       <table>
+         <thead>
+           <tr><th>Layer</th><th>Thickness<span class="col-unit" id="thU"></span></th><th>Wall distance<span class="col-unit" id="distU"></span></th></tr>
+         </thead>
+         <tbody id="layers"></tbody>
+       </table>
+       <div class="breakdown-empty" id="layersEmpty"></div>
+     </div>
+   </aside>
+  </div><!-- /layout -->
+
+  <footer>
+    <p>Geometric series: <code>T = t₁·(rⁿ − 1)/(r − 1)</code>. All math runs in your browser.</p>
+  </footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
