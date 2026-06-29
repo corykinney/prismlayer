@@ -3,7 +3,7 @@
 
   // The geometric series has three degrees of freedom (t1, r, n). "Size" is a
   // fourth logical parameter expressed two interchangeable ways: total
-  // thickness (T) or outermost-layer thickness (t_out). The user edits
+  // thickness (T) or near-core layer thickness (t_n). The user edits
   // whichever they know; the other is derived.
   const FIELDS = ["first", "ratio", "count", "total", "last"];
   const els = {};
@@ -35,7 +35,7 @@
     ratio: "Stretch factor",
     count: "Number of layers",
     total: "Total thickness",
-    last: "Outermost layer thickness"
+    last: "Near-core layer thickness"
   };
 
   // ---- unit helpers --------------------------------------------------------
@@ -171,7 +171,7 @@
     else computeParam();
   }
 
-  // Compute total and outermost-layer thickness from t1, r, n.
+  // Compute total and near-core layer thickness from t1, r, n.
   function computeSize() {
     els.total.value = "";
     els.last.value = "";
@@ -189,7 +189,7 @@
     els.total.value = fmt(T / lenFactor("total"));
     els.last.value = fmt(tL / lenFactor("last"));
     setStatus("Total thickness = " + fmt(T / lenFactor("total")) + " " + unitName("total") +
-              ", outermost layer = " + fmt(tL / lenFactor("last")) + " " + unitName("last") + ".", "ok");
+              ", near-core layer = " + fmt(tL / lenFactor("last")) + " " + unitName("last") + ".", "ok");
     renderLayers({ first: t1, ratio: r, count: n });
   }
 
@@ -218,16 +218,41 @@
     if (e) { setStatus(e, "error"); renderLayers(null); return; }
 
     const usingLast = src.key === "last";
-    let result;
+    // The defining triple we will display / chart, in base metres.
+    let p = { first: base.first, ratio: base.ratio, count: base.count };
+    let result;          // value shown in the solved field
+    let actualRatio;     // for count mode: the true stretch factor after rounding
+
     if (solveFor === "first") {
       result = usingLast ? firstFromLast(base.ratio, base.count, src.val)
                          : firstFromTotal(base.ratio, base.count, src.val);
+      p.first = result;
     } else if (solveFor === "ratio") {
       result = usingLast ? ratioFromLast(base.first, base.count, src.val)
                          : ratioFromTotal(base.first, base.count, src.val);
-    } else { // count
-      result = usingLast ? countFromLast(base.first, base.ratio, src.val)
-                         : countFromTotal(base.first, base.ratio, src.val);
+      p.ratio = result;
+    } else { // count — stretch factor is a MAX bound; round layers up, then
+             // back out the actual (smaller) stretch factor for that integer n
+      const rMax = base.ratio;
+      const nExact = usingLast ? countFromLast(base.first, rMax, src.val)
+                               : countFromTotal(base.first, rMax, src.val);
+      if (Number.isFinite(nExact) && nExact > 0) {
+        const rounded = Math.round(nExact);
+        let n = (Math.abs(nExact - rounded) < 1e-6) ? rounded : Math.ceil(nExact);
+        n = Math.max(1, n);
+        result = n;
+        p.count = n;
+        if (n <= 1) {
+          actualRatio = rMax;                 // single layer: stretch is irrelevant
+        } else {
+          const ra = usingLast ? ratioFromLast(base.first, n, src.val)
+                               : ratioFromTotal(base.first, n, src.val);
+          actualRatio = (Number.isFinite(ra) && ra > 0) ? ra : rMax;
+        }
+        p.ratio = actualRatio;
+      } else {
+        result = NaN;
+      }
     }
 
     const invalid = !Number.isFinite(result) || result <= 0 ||
@@ -241,26 +266,19 @@
     // "first" is a length → display in its own unit; ratio/count are unitless.
     els[solveFor].value = (solveFor === "first") ? fmt(result / lenFactor("first")) : fmt(result);
 
-    // Consistent defining triple (base metres), then fill the derived size value.
-    const p = {
-      first: solveFor === "first" ? result : base.first,
-      ratio: solveFor === "ratio" ? result : base.ratio,
-      count: solveFor === "count" ? result : base.count
-    };
+    // Fill the derived size value from the consistent triple.
     if (src.key === "total") els.last.value = fmt(lastFrom(p.first, p.ratio, p.count) / lenFactor("last"));
     else els.total.value = fmt(totalFrom(p.first, p.ratio, p.count) / lenFactor("total"));
 
-    let dispResult, unit = "";
-    if (solveFor === "first") { dispResult = result / lenFactor("first"); unit = " " + unitName("first"); }
-    else if (solveFor === "ratio") { dispResult = result; unit = "×"; }
-    else { dispResult = result; }
-
-    let note = "";
-    if (solveFor === "count" && Math.abs(result - Math.round(result)) > 1e-6) {
-      note = "  Layer count isn't a whole number — use " + Math.floor(result) + " or " +
-             Math.ceil(result) + " and re-solve another value to keep the series consistent.";
+    if (solveFor === "count") {
+      setStatus("Number of layers = " + result + " — actual stretch factor " + fmt(actualRatio) +
+                "× (≤ " + fmt(base.ratio) + "× max).", "ok");
+    } else {
+      let dispResult, unit = "";
+      if (solveFor === "first") { dispResult = result / lenFactor("first"); unit = " " + unitName("first"); }
+      else { dispResult = result; unit = "×"; }   // ratio
+      setStatus(LABELS[solveFor] + " = " + fmt(dispResult) + unit + ".", "ok");
     }
-    setStatus(LABELS[solveFor] + " = " + fmt(dispResult) + unit + "." + note, "ok");
     renderLayers(p);
   }
 
@@ -295,7 +313,7 @@
       rows.push({ layer: i + 1, t: t, dist: cum });
     }
 
-    // Display outermost layer first, near-wall layer last.
+    // Display near-core layer first, near-wall layer last.
     const frag = document.createDocumentFragment();
     for (let i = rows.length - 1; i >= 0; i--) {
       const r = rows[i];
@@ -318,7 +336,7 @@
   function setSolveFor(param) {
     solveFor = param;
     // Highlight the solved block. The size group (data-key="size") covers both
-    // total and outermost-layer thickness.
+    // total and near-core layer thickness.
     document.querySelectorAll(".field[data-key]").forEach(field => {
       field.classList.toggle("solved", field.dataset.key === param);
     });
@@ -327,6 +345,9 @@
     els.count.readOnly = param === "count";
     els.total.readOnly = param === "size";
     els.last.readOnly = param === "size";
+    // When solving for layer count the stretch factor is treated as an upper
+    // bound — flag the field so the "≤" indicator shows.
+    document.querySelector('.field[data-key="ratio"]').classList.toggle("max-bound", param === "count");
     // Steppers only make sense when the layer count is an editable input.
     document.querySelectorAll(".step").forEach(b => b.disabled = (param === "count"));
     recompute();
@@ -358,7 +379,23 @@
   document.querySelectorAll(".step").forEach(btn => {
     btn.addEventListener("click", () => stepCount(Number(btn.dataset.step)));
   });
-  ["first", "ratio", "count"].forEach(k => els[k].addEventListener("input", recompute));
+  ["first", "ratio"].forEach(k => els[k].addEventListener("input", recompute));
+
+  // Layer count is a positive integer — block decimal/exponent/sign keystrokes
+  // and normalise anything pasted in to a whole number.
+  els.count.addEventListener("keydown", e => {
+    if ([".", ",", "e", "E", "+", "-"].includes(e.key)) e.preventDefault();
+  });
+  els.count.addEventListener("input", () => {
+    const raw = els.count.value;
+    if (raw !== "") {
+      const n = Math.trunc(Math.abs(Number(raw)));
+      const norm = Number.isFinite(n) ? String(n) : "";
+      if (norm !== raw) els.count.value = norm;
+    }
+    recompute();
+  });
+
   // editing either size field makes it the active input (last edited wins)
   els.total.addEventListener("input", () => { sizeInput = "total"; recompute(); });
   els.last.addEventListener("input", () => { sizeInput = "last"; recompute(); });

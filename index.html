@@ -119,7 +119,23 @@
   }
   .field.solved input[type="number"]:read-only { cursor: default; }
 
-  /* grouped "size" block: total thickness and outermost-layer thickness are
+  /* "≤" indicator shown inside the stretch-factor box when it is a max bound */
+  .num-prefix { position: relative; display: inline-flex; }
+  .le-sign {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.95rem;
+    pointer-events: none;
+    display: none;
+  }
+  .field.max-bound .le-sign { display: block; }
+  .field.max-bound #ratio { padding-left: 24px; }
+
+  /* grouped "size" block: total thickness and near-core layer thickness are
      interchangeable inputs sharing one solve toggle */
   .field.size-group { gap: 8px; border: 1px dashed var(--border); }
   .field.solved.size-group { border-style: solid; border-color: var(--solved); }
@@ -297,7 +313,7 @@
 <div class="wrap">
   <header>
     <h1>Prism Layer Calculator</h1>
-    <p>Mesh prism layers as a geometric series. Tap the <b>=</b> icon on the value you want computed, then enter the others. Total and outermost-layer thickness are interchangeable — edit whichever you know and the other follows.</p>
+    <p>Mesh prism layers as a geometric series. Tap the <b>=</b> icon on the value you want computed, then enter the others. Total and near-core layer thickness are interchangeable — edit whichever you know and the other follows.</p>
   </header>
 
   <div class="layout">
@@ -326,7 +342,10 @@
         <span class="sub">r — growth ratio between consecutive layers (&gt; 1)</span>
       </div>
       <div class="input-group">
-        <input type="number" id="ratio" step="any" min="0" placeholder="1.2">
+        <span class="num-prefix">
+          <span class="le-sign" aria-hidden="true">&le;</span>
+          <input type="number" id="ratio" step="any" min="0" placeholder="1.2">
+        </span>
         <span class="units">&times;</span>
         <button class="solve-toggle" data-solve="ratio" title="Solve for stretch factor" aria-label="Solve for stretch factor">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="9" x2="18" y2="9"/><line x1="6" y1="15" x2="18" y2="15"/></svg>
@@ -340,7 +359,7 @@
         <span class="sub">n — total count of layers</span>
       </div>
       <div class="input-group">
-        <input type="number" id="count" step="1" min="1" placeholder="15">
+        <input type="number" id="count" step="1" min="1" inputmode="numeric" placeholder="15">
         <div class="stepper">
           <button type="button" class="step" data-step="-1" aria-label="Decrease layer count">&minus;</button>
           <button type="button" class="step" data-step="1" aria-label="Increase layer count">+</button>
@@ -355,12 +374,12 @@
       <div class="size-stack">
         <div class="size-item">
           <div class="field-label">
-            <span class="name">Outermost layer thickness</span>
-            <span class="sub">t<sub>out</sub> — height of the last layer, farthest from the wall</span>
+            <span class="name">Near-core layer thickness</span>
+            <span class="sub">t<sub>n</sub> — height of the last layer, farthest from the wall</span>
           </div>
           <div class="entry">
             <input type="number" id="last" step="any" min="0" placeholder="0.015">
-            <select class="unit-select" id="unit-last" aria-label="Outermost layer thickness unit">
+            <select class="unit-select" id="unit-last" aria-label="Near-core layer thickness unit">
               <option value="m">m</option>
               <option value="mm">mm</option>
             </select>
@@ -381,7 +400,7 @@
           </div>
         </div>
       </div>
-      <button class="solve-toggle" data-solve="size" title="Compute mesh size (total &amp; outermost-layer) from the others" aria-label="Compute total and outermost-layer thickness">
+      <button class="solve-toggle" data-solve="size" title="Compute mesh size (total &amp; near-core layer) from the others" aria-label="Compute total and near-core layer thickness">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="9" x2="18" y2="9"/><line x1="6" y1="15" x2="18" y2="15"/></svg>
       </button>
     </div>
@@ -397,7 +416,7 @@
    <aside class="breakdown-panel">
      <div class="breakdown-head">
        <span>Per-layer breakdown</span>
-       <span class="hint">outermost → wall</span>
+       <span class="hint">core → wall</span>
      </div>
      <div class="breakdown-scroll">
        <table>

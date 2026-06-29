@@ -13,24 +13,24 @@ The prism stack is described by four quantities, related by a geometric series:
 - **Number of prism layers** `n`
 - **Mesh size**, expressed either as:
   - **Total thickness** `T` — combined height of all layers, or
-  - **Outermost layer thickness** `t_out` — height of the last layer
+  - **Near-core layer thickness** `t_n` — height of the last layer
 
 The governing relation is:
 
 ```
-T = t₁ · (rⁿ − 1) / (r − 1)        (and  t_out = t₁ · r^(n−1))
+T = t₁ · (rⁿ − 1) / (r − 1)        (and  t_n = t₁ · r^(n−1))
 ```
 
 Pick the value you want computed with the `=` toggle, enter the others, and the
-result updates live. Total and outermost-layer thickness are interchangeable —
+result updates live. Total and near-core layer thickness are interchangeable —
 edit whichever you know and the other is derived automatically.
 
 ### Features
 
 - Solve for any of: near-wall thickness, stretch factor, layer count, or mesh size
-- Total ↔ outermost-layer thickness handled as one "size" input (last edited wins)
+- Total ↔ near-core layer thickness handled as one "size" input (last edited wins)
 - Per-field length units (m / mm) with automatic conversion
-- Per-layer breakdown table (outermost → wall) with cumulative wall distance
+- Per-layer breakdown table (near-core → wall) with cumulative wall distance
 - Stepper buttons for the layer count, snapping non-integer results to whole numbers
 - Responsive layout: calculator and breakdown sit side by side on wide screens,
   stack on narrow ones
