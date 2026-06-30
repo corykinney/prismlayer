@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Prism layer calculator">
+  <rect width="64" height="64" rx="14.08" fill="#161922"/>
+  <line x1="11.52" y1="49.65" x2="52.48" y2="49.65" stroke="#4f9dff" stroke-width="1.408" stroke-linecap="round"/>
+  <line x1="11.52" y1="45.25" x2="52.48" y2="45.25" stroke="#4f9dff" stroke-width="1.408" stroke-linecap="round"/>
+  <line x1="11.52" y1="38.44" x2="52.48" y2="38.44" stroke="#4f9dff" stroke-width="1.408" stroke-linecap="round"/>
+  <line x1="11.52" y1="27.88" x2="52.48" y2="27.88" stroke="#4f9dff" stroke-width="1.408" stroke-linecap="round"/>
+  <line x1="11.52" y1="11.52" x2="52.48" y2="11.52" stroke="#4f9dff" stroke-width="2.048" stroke-linecap="round"/>
+  <line x1="11.52" y1="52.48" x2="52.48" y2="52.48" stroke="#e6e9ef" stroke-width="3.2" stroke-linecap="round"/>
+</svg>
